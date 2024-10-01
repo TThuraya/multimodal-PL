@@ -1,0 +1,19 @@
+# Config file for preprocessing related params for visceral
+
+# General
+dataset_config: visceral
+dataset_name: visceral_160_160_256
+modality: CT
+seed: 10
+path_to_gc_dataset: TODO
+path_to_sc_dataset: TODO
+
+# Preprocessing
+fixed_size: True
+foreground_normalization: True
+resize_shape: [160, 160, 256]
+cropping: True
+key: image # [image, label]
+margin: 5
+orientation: RAS
+min_num_organs: 12
