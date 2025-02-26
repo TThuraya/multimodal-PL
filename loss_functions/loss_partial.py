@@ -1,7 +1,8 @@
+
 from torch import nn, Tensor
 import torch
 from torch.nn.modules.loss import CrossEntropyLoss, BCELoss, BCEWithLogitsLoss
-from torch.cuda.amp import autocast
+#from torch.cuda.amp import autocast
 import numpy as np
 import torch.nn.functional as F
 
