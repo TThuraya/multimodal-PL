@@ -1,0 +1,21 @@
+python3 train_amos_atlas_final.py \
+--train_list='/list/MOTS/MOTS_train.txt' \
+--val_list='/list/MOTS/MOTS_test.txt' \
+--snapshot_dir='snapshots/amos_ours_77' \
+--input_size='64,192,192' \
+--batch_size=1 \
+--num_epochs=500 \
+--start_epoch=0 \
+--learning_rate=5e-4 \
+--num_classes=14 \
+--num_workers=2 \
+--weight_std=True \
+--random_mirror=True \
+--random_scale=True \
+--deep_up=True \
+--weight_gan=0.001 \
+--augmask=2 \
+--seed=0 \
+--pretrain_epoch=20 \
+--reload_from_checkpoint=False \
+--FP16=False >> ./run_files/amos_ours_77.txt
