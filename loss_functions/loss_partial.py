@@ -1,4 +1,3 @@
-
 from torch import nn, Tensor
 import torch
 from torch.nn.modules.loss import CrossEntropyLoss, BCELoss, BCEWithLogitsLoss

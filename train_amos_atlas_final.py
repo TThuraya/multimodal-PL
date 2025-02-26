@@ -1,4 +1,4 @@
-import argparse
+import argparse  
 import os, sys
 
 sys.path.append("..")
@@ -34,6 +34,8 @@ from torch.nn.modules.loss import _WeightedLoss
 from utils import adjust_learning_rate, mask_aug, seedfix
 from loss_functions.losses import get_loss_refine, get_loss, SmoothCrossEntropyLoss, bce_loss
 
+from batchgenerators.transforms.abstract_transforms import Compose
+from torchvision.transforms import Compose
 
 start = timeit.default_timer()
 
@@ -105,9 +107,6 @@ def main():
         
         seedfix(args.seed)
 
-        if args.num_gpus > 1:
-            torch.cuda.set_device(args.local_rank)
-
         if args.local_rank == 0:
             writer = SummaryWriter(args.snapshot_dir)
             print(args)
@@ -123,8 +122,13 @@ def main():
         if engine.distributed:
             seed = args.local_rank
         torch.manual_seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed(seed)
+
+        # Replace the device setup code with this:
+        if torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+        print(f"Using device: {device}")
 
         # Create model
         model = unet3D_with_feam3([1, 2, 2, 2, 2], num_classes=args.num_classes, weight_std=args.weight_std, use_cm = [True, True, True], deep_up=args.deep_up)
@@ -137,7 +141,6 @@ def main():
         else:
             d_style = deep_style_discriminator_output(num_classes=2) # num_classes number of input
 
-        device = torch.device('cuda:{}'.format(args.local_rank))
         model.to(device)
         d_style.to(device)
         refiner.to(device)
@@ -207,33 +210,33 @@ def main():
             epoch_loss = []
             adjust_learning_rate(optimizer, epoch, args.learning_rate, args.num_epochs, args.power)
 
-            train_Dice1 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-            train_senc1 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-            train_spec1 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-            count1 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-            train_Dice2 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-            train_senc2 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-            train_spec2 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-            count2 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
+            train_Dice1 = torch.zeros(size=(13, 1), device=device)
+            train_senc1 = torch.zeros(size=(13, 1), device=device)
+            train_spec1 = torch.zeros(size=(13, 1), device=device)
+            count1 = torch.zeros(size=(13, 1), device=device)
+            train_Dice2 = torch.zeros(size=(13, 1), device=device)
+            train_senc2 = torch.zeros(size=(13, 1), device=device)
+            train_spec2 = torch.zeros(size=(13, 1), device=device)
+            count2 = torch.zeros(size=(13, 1), device=device)
 
             for iter, batch in enumerate(trainloader):
 
-                images = torch.from_numpy(batch['image']).cuda()
+                images = torch.from_numpy(batch['image']).to(device)
                 if images.shape[2] != 64 or images.shape[3] != 192 or images.shape[4] != 192:
                     continue
-                labels = torch.from_numpy(batch['label']).cuda()
+                labels = torch.from_numpy(batch['label']).to(device)
                 volumeName = "amos_" + batch['name'][0]
 
                 sup_mask = mask_dict[volumeName]
 
-                label_d = torch.tensor(sup_mask[1:]).float()  # for the sup
+                label_d = torch.tensor(sup_mask[1:]).float().to(device)  # for the sup
 
                 task_ids = batch['task_id']
 
                 if int(batch['name'][0]) >= 500:
-                    label_t = torch.tensor([1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0]).float()  # for the model index
+                    label_t = torch.tensor([1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0]).float().to(device)  # for the model index
                 else:
-                    label_t = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1]).float()
+                    label_t = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1]).float().to(device)
 
                 flist = []
                 tlist = []
@@ -255,7 +258,7 @@ def main():
 
                 catlas = batch['catlas']
                 if catlas[0] is not None:
-                    catlas = torch.from_numpy(catlas[0]).cuda()
+                    catlas = torch.from_numpy(catlas[0]).to(device)
                 else:
                     catlas = None
 

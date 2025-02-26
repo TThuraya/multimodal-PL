@@ -5,10 +5,11 @@ import glob
 import matplotlib.pyplot as plt
 import cv2
 import scipy.ndimage as ndimage
-from .transforms import transform_preprocessing_amos
-
+from transforms import transform_preprocessing_amos
+from pathlib import Path
 import yaml
-import SimpleITK as sitk
+import json
+import monai
 
 PATH_TO_CONFIG = Path("./config/")
 
@@ -88,8 +89,10 @@ _preprocessing_transform = transform_preprocessing_amos(
             resize_shape=preprocessing_config['resize_shape']
         )
 
-datapath = "/apdcephfs/share_1290796/lh/dataset/nnFormer_raw/nnFormer_raw_data/Task005_AMOS/imagesTr"
+datapath = "/Users/thurayaalzubaidi/multimodal-PL-1/amos/imagesTr"
 files = glob.glob(os.path.join(datapath, "*.nii.gz"))
+if not files:
+    raise FileNotFoundError(f"No .nii.gz files found in {datapath}")
 
 print(f"Totally {len(files)} files.")
 
@@ -117,12 +120,29 @@ for idx, l in enumerate(files):
 
     ##################################### monai process: orientation and spacing normlization 
 
+    # Verify files exist and are readable
+    if not os.path.exists(l):
+        raise FileNotFoundError(f"Image file not found: {l}")
+    if not os.path.exists(label_path):
+        raise FileNotFoundError(f"Label file not found: {label_path}")
+
+    # Print paths for debugging
+    print(f"Image path: {l}")
+    print(f"Label path: {label_path}")
+
     case_dict = {
                 'image': l,
                 'label': label_path
             }
 
-    preprocessed_case = _preprocessing_transform(case_dict)
+    try:
+        preprocessed_case = _preprocessing_transform(case_dict)
+    except Exception as e:
+        print(f"Failed to preprocess case: {str(e)}")
+        print(f"Image exists: {os.path.exists(l)}")
+        print(f"Label exists: {os.path.exists(label_path)}")
+        raise
+
     image, label = preprocessed_case['image'].squeeze(), preprocessed_case['label'].squeeze()
 
     label[label >= 14] = 0
@@ -198,16 +218,21 @@ for idx, l in enumerate(files):
     #label_nii_pred.SetOrigin(label_nii.GetOrigin())
     #label_nii_pred.SetDirection(label_nii.GetDirection())
 
-    cpath_image = os.path.join("/apdcephfs/share_1290796/lh/transoar-main/preprocess/processed_data_f/imagesTr", l.split("/")[-1])
-    cpath_label = os.path.join("/apdcephfs/share_1290796/lh/transoar-main/preprocess/processed_data_f/labelsTr", label_path.split("/")[-1])
+    cpath_image = os.path.join("/Users/thurayaalzubaidi/multimodal-PL-1/amos/imagesTr", l.split("/")[-1])
+    cpath_label = os.path.join("/Users/thurayaalzubaidi/multimodal-PL-1/amos/labelsTr", label_path.split("/")[-1])
 
     #sitk.WriteImage(CT_nii_pred, cpath_image)
     #sitk.WriteImage(label_nii_pred, cpath_label)
     #plt.subplot(2,1,2)
 
-    plt.imshow(maxcomponent[zmin:zmax, ymin:ymax, xmin:xmax][:,:,image_a.shape[2] // 2], cmap = "gray")
-    #plt.imshow(maxcomponent_up[zmin:zmax, ymin:ymax, xmin:xmax][:,:,20], cmap = "gray")
-    # plt.imshow(image_a[:,:,image_a.shape[2] // 2], cmap = "gray")
-    plt.savefig(os.path.join("/apdcephfs/share_1290796/lh/transoar-main/preprocess/processed_data_f/pics", l.split("/")[-1][:-7]+".png"))
+    # Create pics directory if it doesn't exist
+    pics_dir = os.path.join("/Users/thurayaalzubaidi/multimodal-PL-1/amos/pics")
+    os.makedirs(pics_dir, exist_ok=True)
 
-    
+    # Create a new figure with specified size
+    plt.figure(figsize=(10, 10))
+    plt.imshow(maxcomponent[zmin:zmax, ymin:ymax, xmin:xmax][:,:,image_a.shape[2] // 2], cmap="gray")
+    plt.axis('off')  # Hide axes
+    output_path = os.path.join(pics_dir, f"amos_0530.png")
+    plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
+    plt.close()  # Close the figure to free memory

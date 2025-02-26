@@ -22,7 +22,8 @@ import os.path as osp
 import random
 import timeit
 from tensorboardX import SummaryWriter
-from .loss_partial import EDiceLoss_partial, EDiceLoss_full, EDiceLoss_full2
+from loss_functions.loss_partial import EDiceLoss_partial, EDiceLoss_full, EDiceLoss_full2
+
 #from evaluate_amos import predict_sliding, get_dice, get_dice2
 
 from sklearn import metrics
@@ -33,7 +34,7 @@ from engine import Engine
 #from apex.parallel import convert_syncbn_model
 
 import csv
-from torch.cuda.amp import autocast
+#from torch.cuda.amp import autocast
 
 from torch.autograd import Variable
 from torch.nn.modules.loss import _WeightedLoss
