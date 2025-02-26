@@ -11,28 +11,37 @@ import copy
 import csv
 
 def get_mask_dict_ct(cid):
+    mask = [0] * 16  # 16 slots (0=background, 1-15=organs)
     
+    # Map case IDs to supervised organs (adjust ranges as needed)
     if int(cid) <= 45:
-        c_supervise_mask = [0, 0,0,0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+        mask[4] = 1   # Gall bladder (label 4)
     elif int(cid) <= 85:
-        c_supervise_mask = [0, 0,0,0, 0, 1, 0, 0, 0, 0, 0, 0, 0]
+        mask[5] = 1   # Esophagus (label 5)
     elif int(cid) <= 135:
-        c_supervise_mask = [0, 0,0,0, 0, 0, 1, 0, 0, 0, 0, 0, 0]
+        mask[6] = 1   # Liver (label 6)
     elif int(cid) <= 180:
-        c_supervise_mask = [0, 0,0,0, 0, 0, 0, 1, 0, 0, 0, 0, 0]
+        mask[7] = 1   # Stomach (label 7)
     elif int(cid) <= 242:
-        c_supervise_mask = [0, 0,0,0, 0, 0, 0, 0, 1, 0, 0, 0, 0]
+        mask[8] = 1   # Aorta (label 8)
     elif int(cid) <= 300:
-        c_supervise_mask = [0, 0,0,0, 0, 0, 0, 0, 0, 0, 1, 0, 0]
+        mask[9] = 1   # Postcava (label 9)
     elif int(cid) <= 370:
-        c_supervise_mask = [0, 0,0,0, 0, 0, 0, 0, 0, 0, 0, 1, 0]
+        mask[10] = 1  # Pancreas (label 10)
+    elif int(cid) <= 440:
+        mask[11] = 1  # Right adrenal gland (label 11)
+    elif int(cid) <= 500:
+        mask[12] = 1  # Left adrenal gland (label 12)
+    elif int(cid) <= 560:
+        mask[13] = 1  # Duodenum (label 13)
+    elif int(cid) <= 620:
+        mask[14] = 1  # Bladder (label 14)
     else:
-        c_supervise_mask = [0, 0,0,0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
-
+        mask[15] = 1  # Prostate/uterus (label 15)
     
-    return c_supervise_mask
+    return mask[1:]  # Exclude background (keep only labels 1-15)
 
-label_path = "/apdcephfs/share_1290796/lh/transoar-main/preprocess/processed_data_f/labelsTr"
+label_path = "/Users/thurayaalzubaidi/multimodal-PL-1/amos22/labelsTr"
 label_files = glob.glob(os.path.join(label_path, "*.nii.gz"))
 
 old_files = copy.deepcopy(label_files)
@@ -45,8 +54,6 @@ random.seed(1)
 random.shuffle(label_files)
 
 training_files = label_files[:int(0.7*len(label_files))]
-
-
 
 total_shape = [0,0,0]
 total = 0
@@ -70,18 +77,33 @@ total_shape = [np.round(l) for l in total_shape]
 
 print(f"The average shape: {total_shape}")
 
-
-catlas = np.zeros((13, int(total_shape[0]), int(total_shape[1]), int(total_shape[2])))
-count = np.zeros((13, 1,1,1)) 
+catlas = np.zeros((15, int(total_shape[0]), int(total_shape[1]), int(total_shape[2])))
+count = np.zeros((15, 1,1,1)) 
 
 tcount = [24, 25, 25, 21, 64, 64, 63, 64, 79, 25, 79, 79, 79]
 
+import csv
+import json
+
+with open("/Users/thurayaalzubaidi/multimodal-PL-1/amos22/dataset.json") as f:
+    data = json.load(f)
+
+with open("supervise_mask.csv", "w", newline="") as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(["name", "mask"])
+    
+    for case in data["training"]:
+        case_id = int(case["image"].split("_")[-1].split(".")[0])
+        mask = get_mask_dict_ct(case_id)  # Use the updated function
+        writer.writerow([case["image"].split("/")[-1], mask])
+
+"""""
 mask_dict = {}
 mask_file = "/apdcephfs/share_1290796/lh/DoDNet/ours/supervise_mask.csv"
 cfile = open(mask_file, "r")
 reader = csv.reader(cfile)
 for name, mask in reader:
-    mask_dict[name] = eval(mask)
+    mask_dict[name] = eval(mask) 
 
 for l in training_files:
 
@@ -120,7 +142,8 @@ for gan in range(1, 14):
 
 print(count)
 
-np.save("atlas_mm_25p.npy", catlas)
+np.save("atlas_mm_25p.npy", catlas) """
+
 
 
 
