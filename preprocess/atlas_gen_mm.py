@@ -9,140 +9,154 @@ import random
 from scipy.ndimage import gaussian_filter
 import copy
 import csv
+import json
 
 def get_mask_dict_ct(cid):
+    """
+    Generate supervision mask for semi-supervised learning.
+    Labels 1-3 are intentionally unsupervised.
+    
+    Args:
+        cid: Case ID (int)
+            < 500: CT data
+            >= 500: MRI data
+    """
     mask = [0] * 16  # 16 slots (0=background, 1-15=organs)
     
-    # Map case IDs to supervised organs (adjust ranges as needed)
-    if int(cid) <= 45:
-        mask[4] = 1   # Gall bladder (label 4)
-    elif int(cid) <= 85:
-        mask[5] = 1   # Esophagus (label 5)
-    elif int(cid) <= 135:
-        mask[6] = 1   # Liver (label 6)
-    elif int(cid) <= 180:
-        mask[7] = 1   # Stomach (label 7)
-    elif int(cid) <= 242:
-        mask[8] = 1   # Aorta (label 8)
-    elif int(cid) <= 300:
-        mask[9] = 1   # Postcava (label 9)
-    elif int(cid) <= 370:
-        mask[10] = 1  # Pancreas (label 10)
-    elif int(cid) <= 440:
-        mask[11] = 1  # Right adrenal gland (label 11)
-    elif int(cid) <= 500:
-        mask[12] = 1  # Left adrenal gland (label 12)
-    elif int(cid) <= 560:
-        mask[13] = 1  # Duodenum (label 13)
-    elif int(cid) <= 620:
-        mask[14] = 1  # Bladder (label 14)
-    else:
-        mask[15] = 1  # Prostate/uterus (label 15)
+    # Only process CT data (id < 500)
+    cid = int(cid)
+    if cid >= 500:  # MRI data
+        return [0] * 15  # Return all zeros for MRI data
+        
+    # Supervised organs only (labels 4-15)
+    # Adjusted ranges based on 200 CT training images
+    if cid <= 45:
+        mask[4] = 1   # Gall bladder
+    elif cid <= 85:
+        mask[5] = 1   # Esophagus
+    elif cid <= 135:
+        mask[6] = 1   # Liver
+    elif cid <= 180:
+        mask[7] = 1   # Stomach
+    elif cid <= 242:
+        mask[8] = 1   # Aorta
+    elif cid <= 300:
+        mask[9] = 1   # Postcava
+    elif cid <= 370:
+        mask[10] = 1  # Pancreas
+    elif cid <= 440:
+        mask[11] = 1  # Right adrenal gland
+    elif cid <= 460:
+        mask[12] = 1  # Left adrenal gland
+    elif cid <= 480:
+        mask[13] = 1  # Duodenum
+    elif cid <= 500:
+        mask[14] = 1  # Bladder
+    # Note: mask[15] (Prostate/uterus) remains 0 as it might be specific to certain cases
     
     return mask[1:]  # Exclude background (keep only labels 1-15)
 
-label_path = "/Users/thurayaalzubaidi/multimodal-PL-1/amos22/labelsTr"
-label_files = glob.glob(os.path.join(label_path, "*.nii.gz"))
-
-old_files = copy.deepcopy(label_files)
-for l in old_files:
-    cname = l.split("/")[-1]
-    if "amos" not in cname:
-        label_files.remove(l)
-
-random.seed(1)
-random.shuffle(label_files)
-
-training_files = label_files[:int(0.7*len(label_files))]
-
-total_shape = [0,0,0]
-total = 0
-
-for l in training_files:
-
-    label_nii = sitk.ReadImage(l)
-    label_a = sitk.GetArrayFromImage(label_nii)
-
-    total_shape[0] += label_a.shape[0]
-    total_shape[1] += label_a.shape[1]
-    total_shape[2] += label_a.shape[2]
-
-    #print(label_a.shape)
-
-total_shape[0] /= len(training_files)
-total_shape[1] /= len(training_files)
-total_shape[2] /= len(training_files)
-
-total_shape = [np.round(l) for l in total_shape]
-
-print(f"The average shape: {total_shape}")
-
-catlas = np.zeros((15, int(total_shape[0]), int(total_shape[1]), int(total_shape[2])))
-count = np.zeros((15, 1,1,1)) 
-
-tcount = [24, 25, 25, 21, 64, 64, 63, 64, 79, 25, 79, 79, 79]
-
-import csv
-import json
-
-with open("/Users/thurayaalzubaidi/multimodal-PL-1/amos22/dataset.json") as f:
-    data = json.load(f)
-
-with open("supervise_mask.csv", "w", newline="") as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(["name", "mask"])
+def generate_supervision_mask(json_path="amos/dataset.json"):
+    """Generate supervision mask from dataset.json"""
+    with open(json_path) as f:
+        data = json.load(f)
     
-    for case in data["training"]:
-        case_id = int(case["image"].split("_")[-1].split(".")[0])
-        mask = get_mask_dict_ct(case_id)  # Use the updated function
-        writer.writerow([case["image"].split("/")[-1], mask])
+    with open("supervise_mask.csv", "w", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["name", "mask"])
+        
+        for case in data["training"]:
+            case_id = int(case["image"].split("_")[-1].split(".")[0])
+            mask = get_mask_dict_ct(case_id)  # Using existing function
+            writer.writerow([case["image"].split("/")[-1], mask])
 
-"""""
-mask_dict = {}
-mask_file = "/apdcephfs/share_1290796/lh/DoDNet/ours/supervise_mask.csv"
-cfile = open(mask_file, "r")
-reader = csv.reader(cfile)
-for name, mask in reader:
-    mask_dict[name] = eval(mask) 
-
-for l in training_files:
-
-
-    cid = l.split("/")[-1].split("_")[1][:-7]
-    # c_sup_mask = mask_dict("amos" + cid)
-    c_sup_mask = mask_dict["amos_" + cid][1:]
+def generate_atlas(data_dir="/Users/thurayaalzubaidi/multimodal-PL/amos/labelsTr"):
+    """Generate atlas from training labels"""
+    print("\n=== Starting Atlas Generation ===")
     
-    label_nii = sitk.ReadImage(l)
-    label_a = sitk.GetArrayFromImage(label_nii)
+    # First generate the supervision mask
+    print("Step 1: Generating supervision mask...")
+    generate_supervision_mask()
+    print("✓ Supervision mask generated")
+    
+    # Get all label files
+    print("\nStep 2: Looking for label files...")
+    label_files = glob.glob(os.path.join(data_dir, "*.nii.gz"))
+    if not label_files:
+        print(f"Current working directory: {os.getcwd()}")
+        print(f"Looking in directory: {data_dir}")
+        print(f"Directory contents: {os.listdir(data_dir) if os.path.exists(data_dir) else 'Directory not found'}")
+        raise ValueError(f"No .nii.gz files found in {data_dir}")
 
-    for cidx, gan in enumerate(c_sup_mask):
-        if gan:
+    print(f"✓ Found {len(label_files)} label files")
+    
+    # Calculate average shape from training files
+    print("\nStep 3: Calculating average shape...")
+    random.seed(1)
+    random.shuffle(label_files)
+    training_files = label_files[:int(0.7*len(label_files))]
+    print(f"Using {len(training_files)} files for training")
+    
+    total_shape = [0,0,0]
+    for i, l in enumerate(training_files):
+        if i % 10 == 0:  # Print progress every 10 files
+            print(f"Processing file {i+1}/{len(training_files)} for shape calculation")
+        label_nii = sitk.ReadImage(l)
+        label_a = sitk.GetArrayFromImage(label_nii)
+        total_shape[0] += label_a.shape[0]
+        total_shape[1] += label_a.shape[1]
+        total_shape[2] += label_a.shape[2]
 
-            if count[cidx] >= tcount[cidx] // 4  + tcount[cidx] % 4:
-                continue
+    total_shape = [s/len(training_files) for s in total_shape]
+    total_shape = [int(np.round(s)) for s in total_shape]
+    print(f"✓ Average shape calculated: {total_shape}")
 
-            clabel = (label_a == (cidx+1)).astype(np.float32)
+    # Generate atlas
+    print("\nStep 4: Generating atlas...")
+    catlas = np.zeros((15, total_shape[0], total_shape[1], total_shape[2]))
+    count = np.zeros((15, 1, 1, 1))
 
-            if clabel.sum() == 0:
-                continue 
+    # Process each training file
+    total_files = len(training_files)
+    for file_idx, l in enumerate(training_files):
+        print(f"Processing file {file_idx+1}/{total_files}: {os.path.basename(l)}")
+        label_nii = sitk.ReadImage(l)
+        label_a = sitk.GetArrayFromImage(label_nii)
+        
+        for label_idx in range(1, 16):
+            label_mask = (label_a == label_idx).astype(np.float32)
+            if label_mask.sum() > 0:
+                print(f"  - Processing label {label_idx}/15", end='\r')
+                resized = ndimage.zoom(label_mask, 
+                    [total_shape[0]/label_mask.shape[0],
+                     total_shape[1]/label_mask.shape[1],
+                     total_shape[2]/label_mask.shape[2]], order=0)
+                catlas[label_idx-1] += resized
+                count[label_idx-1] += 1
+        print()  # New line after processing all labels
 
-            label_b = ndimage.zoom(clabel, [total_shape[0] / clabel.shape[0], total_shape[1] / clabel.shape[1], total_shape[2] / clabel.shape[2]], order = 0)
+    # Normalize and apply Gaussian smoothing
+    print("\nStep 5: Normalizing and smoothing...")
+    for i in range(15):
+        if count[i] > 0:
+            print(f"Processing organ {i+1}/15", end='\r')
+            catlas[i] = catlas[i] / count[i]
+            catlas[i] = gaussian_filter(catlas[i], sigma=3)
+    print("\n✓ Normalization and smoothing complete")
 
-            #label_b = gaussian_filter(label_b, sigma=3)
+    # Save the atlas
+    print("\nStep 6: Saving atlas...")
+    np.save("atlas_mm.npy", catlas)
+    print("✓ Atlas saved successfully as atlas_mm.npy")
+    print("\n=== Atlas Generation Complete ===")
 
-            count[cidx] += 1
-            catlas[cidx] += label_b
-
-#count[count == 0] = 1
-
-for gan in range(1, 14):
-    if catlas[gan - 1].max() != 0:
-        catlas[gan-1] = catlas[gan-1] / catlas[gan-1].max()
-        catlas[gan-1] = gaussian_filter(catlas[gan-1], sigma = 3)
-
-print(count)
-
-np.save("atlas_mm_25p.npy", catlas) """
+if __name__ == "__main__":
+    import time
+    start_time = time.time()
+    data_dir = "/Users/thurayaalzubaidi/multimodal-PL/amos/labelsTr"
+    generate_atlas(data_dir)
+    elapsed_time = time.time() - start_time
+    print(f"\nTotal execution time: {elapsed_time/60:.2f} minutes")
 
 
 

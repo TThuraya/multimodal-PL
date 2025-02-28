@@ -16,9 +16,11 @@ class BinaryDiceLoss(nn.Module):
         self.reduction = reduction
 
     def forward(self, predict, target):
+        predict = predict.contiguous()
+        target = target.contiguous()
         assert predict.shape[0] == target.shape[0], "predict & target batch size don't match"
-        predict = predict.contiguous().view(predict.shape[0], -1)
-        target = target.contiguous().view(target.shape[0], -1)
+        predict = predict.view(predict.shape[0], -1)
+        target = target.view(target.shape[0], -1)
 
         num = torch.sum(torch.mul(predict, target), dim=1)
         den = torch.sum(predict, dim=1) + torch.sum(target, dim=1) + self.smooth
@@ -38,9 +40,11 @@ class BinaryDiceLoss_(nn.Module):
         self.reduction = reduction
 
     def forward(self, predict, target):
+        predict = predict.contiguous()
+        target = target.contiguous()
         assert predict.shape[0] == target.shape[0], "predict & target batch size don't match"
-        predict = predict.contiguous().view(predict.shape[0], -1)
-        target = target.contiguous().view(target.shape[0], -1)
+        predict = predict.view(predict.shape[0], -1)
+        target = target.view(target.shape[0], -1)
 
         num = torch.sum(torch.mul(predict, target), dim=1)
         den = torch.sum(predict, dim=1) + torch.sum(target, dim=1) + self.smooth
@@ -333,7 +337,7 @@ class TAL(nn.Module):
         self.voxel_avg = torch.zeros(12)
         self.voxel_sum = torch.zeros(12)
         self.voxel_count = torch.zeros(12)
-        self.weights = torch.ones(1,12).cuda()
+        self.weights = torch.ones(1,12)
 
     def update_weights(self, val, dim):
         self.voxel_count[dim] += 1 

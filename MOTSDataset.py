@@ -10,20 +10,25 @@ import torchvision
 import cv2
 from torch.utils import data
 import matplotlib.pyplot as plt
-import nibabel as nib
-from skimage.transform import resize
-import SimpleITK as sitk
+try:
+    import SimpleITK as sitk
+except ImportError:
+    print("Please install SimpleITK: pip install SimpleITK")
 import scipy.ndimage as ndimage
 import glob
 import copy
 import math
 import csv
-from batchgenerators.transforms import Compose
+from batchgenerators.transforms.abstract_transforms import Compose as BatchGeneratorsCompose
 from batchgenerators.transforms.spatial_transforms import SpatialTransform, MirrorTransform
 from batchgenerators.transforms.color_transforms import BrightnessMultiplicativeTransform, GammaTransform, \
     BrightnessTransform, ContrastAugmentationTransform
 from batchgenerators.transforms.noise_transforms import GaussianNoiseTransform, GaussianBlurTransform
 from batchgenerators.transforms.resample_transforms import SimulateLowResolutionTransform
+try:
+    import nibabel as nib
+except ImportError:
+    print("Please install nibabel: pip install nibabel")
 
 def get_train_transform():
     tr_transforms = []
@@ -43,7 +48,7 @@ def get_train_transform():
     #                                    p_per_sample=0.15, data_key="image"))
 
     # now we compose these transforms together
-    tr_transforms = Compose(tr_transforms)
+    tr_transforms = BatchGeneratorsCompose(tr_transforms)
     return tr_transforms
 
 def my_collate(batch):
@@ -112,7 +117,7 @@ class AMOSDataSet_newatlas(data.Dataset):
                 if int(cname) >= 410:
                     self.files.remove(l)
 
-        atlas_path = "/apdcephfs_cq10/share_1290796/lh/transoar-main/atlas_mm.npy"
+        atlas_path = "atlas_mm.npy"
         # atlas load
         self.atlas = np.load(atlas_path) # 13 128 256 256
         print(atlas_path)
@@ -352,8 +357,14 @@ class AMOSDataSet_newatlas(data.Dataset):
         catlas = nn.functional.interpolate(torch.tensor(self.atlas).unsqueeze(0), image.shape).numpy()[0] # just resize the atlas to image's shape. rigid registeration.
 
         if image.shape != label.shape:
-            print(name, image.shape, label.shape)
-            label = label[:image.shape[0], :image.shape[1], :image.shape[2]]
+            print("fxxk", name, image.shape, label.shape, datafiles)
+            final_shape = [
+                min([image.shape[0], label.shape[0]]),
+                min([image.shape[1], label.shape[1]]),
+                min([image.shape[2], label.shape[2]])
+            ]
+            image = image[:final_shape[0], :final_shape[1], :final_shape[2]]
+            label = label[:final_shape[0], :final_shape[1], :final_shape[2]]
 
 
         image = self.pad_image(image, [self.crop_h+5, self.crop_w+5, self.crop_d+5])
@@ -481,7 +492,7 @@ class AMOSDataSet_newatlas_onlyct(data.Dataset):
 
         #if self.usage == "train":
         #atlas_path = "/apdcephfs/share_1290796/lh/transoar-main/atlas_only_ct.npy"
-        atlas_path = "/apdcephfs_cq10/share_1290796/lh/transoar-main/atlas_only_ct.npy"
+        atlas_path = "atlas_only_ct.npy"
         #atlas_path = "/apdcephfs/share_1290796/lh/transoar-main/atlas_only_ct_5.npy"
         #atlas_path = "/apdcephfs/share_1290796/lh/transoar-main/atlas_only_ct_1.npy"
 
@@ -697,7 +708,11 @@ class AMOSDataSet_newatlas_onlyct(data.Dataset):
 
         if image.shape != label.shape:
             print("fxxk", name, image.shape, label.shape, datafiles)
-            final_shape = [min([image.shape[0], label.shape[0]]),min([image.shape[1], label.shape[1]]),min([image.shape[2], label.shape[2]])]
+            final_shape = [
+                min([image.shape[0], label.shape[0]]),
+                min([image.shape[1], label.shape[1]]),
+                min([image.shape[2], label.shape[2]])
+            ]
             image = image[:final_shape[0], :final_shape[1], :final_shape[2]]
             label = label[:final_shape[0], :final_shape[1], :final_shape[2]]
 

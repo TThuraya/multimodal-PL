@@ -1,6 +1,6 @@
 python3 train_amos_atlas_final.py \
---train_list='/list/MOTS/MOTS_train.txt' \
---val_list='/list/MOTS/MOTS_test.txt' \
+--train_list='list/MOTS/MOTS_train.txt' \
+--val_list='list/MOTS/MOTS_test.txt' \
 --snapshot_dir='snapshots/amos_ours_77' \
 --input_size='64,192,192' \
 --batch_size=1 \

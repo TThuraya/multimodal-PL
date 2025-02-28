@@ -16,7 +16,7 @@ import scipy.misc
 import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage import gaussian_filter
 import SimpleITK as sitk
 
 # from tqdm import tqdm
@@ -314,19 +314,27 @@ def save_nii(args, pred, label, name, affine): # bs, c, WHD
     return None
 
 def validate(args, input_size, model, ValLoader, num_classes, engine, usage = "train"):
-
-    val_loss = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 1))
-    val_Dice1 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-    val_senc1 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-    val_spec1 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-    count1 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-    val_Dice2 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-    val_senc2 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-    val_spec2 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-    count2 = torch.zeros(size=(13, 1)).cuda()  # np.zeros(shape=(7, 2))
-    dice_record_mri = np.zeros((len(ValLoader), 13))
-    dice_record_ct = np.zeros((len(ValLoader), 13))
-
+    # Remove .cuda() from tensor initializations
+    val_loss = torch.zeros(size=(13, 1))
+    val_Dice1 = torch.zeros(size=(13, 1))
+    val_senc1 = torch.zeros(size=(13, 1))
+    val_spec1 = torch.zeros(size=(13, 1))
+    count1 = torch.zeros(size=(13, 1))
+    val_Dice2 = torch.zeros(size=(13, 1))
+    val_senc2 = torch.zeros(size=(13, 1))
+    val_spec2 = torch.zeros(size=(13, 1))
+    count2 = torch.zeros(size=(13, 1))
+    val_Dice3 = torch.zeros(size=(13, 1))
+    val_senc3 = torch.zeros(size=(13, 1))
+    val_spec3 = torch.zeros(size=(13, 1))
+    count3 = torch.zeros(size=(13, 1))
+    
+    # Replace any torch.cuda.* calls
+    model[0].eval()
+    
+    # Update device assignments
+    device = torch.device('cpu')
+    
     file = open(os.path.join("/apdcephfs_cq10/share_1290796/lh/DoDNet/ours_final/snapshots/", args.reload_path.split("/")[-2], args.reload_path.split("/")[-1] + "_valie.csv"), "w")
     print(os.path.join("/apdcephfs_cq10/share_1290796/lh/DoDNet/ours_final/snapshots/", args.reload_path.split("/")[-2], args.reload_path.split("/")[-1] + "_valie.csv"))
     writer = csv.writer(file)
@@ -347,7 +355,7 @@ def validate(args, input_size, model, ValLoader, num_classes, engine, usage = "t
             pred_logits = predict_sliding(args, model, image.numpy(), input_size, num_classes, task_id)
 
             # loss = loss_seg_DICE.forward(pred, label) + loss_seg_CE.forward(pred, label)
-            loss = torch.tensor(1).cuda()
+            loss = torch.tensor(1)
 
             dices, senc, spec, preds = get_dice(pred_logits, label, task_id)
             print(dices)
@@ -365,19 +373,19 @@ def validate(args, input_size, model, ValLoader, num_classes, engine, usage = "t
 
             if int(name[0]) < 507:
                 for idx, l in enumerate(dices):
-                    val_Dice1[idx, 0] += l
-                    val_senc1[idx, 0] += senc[idx]
-                    val_spec1[idx, 0] += spec[idx]
-                    count1[idx, 0] += 1
+                    val_Dice1[idx] += l
+                    val_senc1[idx] += senc[idx]
+                    val_spec1[idx] += spec[idx]
+                    count1[idx] += 1
 
                     dice_record_ct[index_ct, idx] = l.numpy()
                 index_ct += 1
             else:
                 for idx, l in enumerate(dices):
-                    val_Dice2[idx, 0] += l
-                    val_senc2[idx, 0] += senc[idx]
-                    val_spec2[idx, 0] += spec[idx]
-                    count2[idx, 0] += 1
+                    val_Dice2[idx] += l
+                    val_senc2[idx] += senc[idx]
+                    val_spec2[idx] += spec[idx]
+                    count2[idx] += 1
 
                     dice_record_mri[index_mri, idx] = l.numpy()
                 index_mri += 1
@@ -499,8 +507,8 @@ def validate(args, input_size, model, ValLoader, num_classes, engine, usage = "t
     print(np.mean(dice_record_ct[:index_ct], 0), np.std(dice_record_ct[:index_ct], 0))
     print(np.mean(dice_record_mri[:index_mri], 0), np.std(dice_record_mri[:index_mri], 0))
 
-    reduce_val_Dice1 = torch.zeros_like(val_Dice1).cuda()
-    reduce_val_Dice2 = torch.zeros_like(val_Dice1).cuda()
+    reduce_val_Dice1 = torch.zeros_like(val_Dice1)
+    reduce_val_Dice2 = torch.zeros_like(val_Dice1)
     for i in range(val_Dice1.shape[0]):
         reduce_val_Dice1[i] = val_Dice1[i]
         reduce_val_Dice2[i] = val_Dice2[i]
@@ -508,28 +516,28 @@ def validate(args, input_size, model, ValLoader, num_classes, engine, usage = "t
     if args.local_rank == 0:
         print("Sum results CT")
         for t in range(13):
-            print('Sum: Task%d- Organ:%.4f' % (t, reduce_val_Dice1[t, 0]))
+            print('Sum: Task%d- Organ:%.4f' % (t, reduce_val_Dice1[t]))
 
         print("mean_result", reduce_val_Dice1.mean())
         print("Sum results MRI")
         for t in range(13):
-            print('Sum: Task%d- Organ:%.4f' % (t, reduce_val_Dice2[t, 0]))
+            print('Sum: Task%d- Organ:%.4f' % (t, reduce_val_Dice2[t]))
         print("mean_result", reduce_val_Dice2.mean())
 
 
         print("Sum results CT")
         for t in range(13):
-            print('Sum: Task%d- Organ:%.4f' % (t, val_spec1[t, 0]))
+            print('Sum: Task%d- Organ:%.4f' % (t, val_spec1[t]))
         print("Sum results MRI")
         for t in range(13):
-            print('Sum: Task%d- Organ:%.4f' % (t, val_spec2[t, 0]))
+            print('Sum: Task%d- Organ:%.4f' % (t, val_spec2[t]))
 
         print("Sum results CT")
         for t in range(13):
-            print('Sum: Task%d- Organ:%.4f' % (t, val_senc1[t, 0]))
+            print('Sum: Task%d- Organ:%.4f' % (t, val_senc1[t]))
         print("Sum results MRI")
         for t in range(13):
-            print('Sum: Task%d- Organ:%.4f' % (t, val_senc2[t, 0]))
+            print('Sum: Task%d- Organ:%.4f' % (t, val_senc2[t]))
 
     return
     return reduce_val_loss.mean(), reduce_val_Dice
@@ -573,7 +581,7 @@ def main():
 
         model.eval()
 
-        device = torch.device('cuda:{}'.format(args.local_rank))
+        device = torch.device('cpu')
         model.to(device)
 
         if args.num_gpus > 1:

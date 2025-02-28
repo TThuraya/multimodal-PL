@@ -35,7 +35,6 @@ from utils import adjust_learning_rate, mask_aug, seedfix
 from loss_functions.losses import get_loss_refine, get_loss, SmoothCrossEntropyLoss, bce_loss
 
 from batchgenerators.transforms.abstract_transforms import Compose
-from torchvision.transforms import Compose
 
 start = timeit.default_timer()
 
@@ -106,33 +105,18 @@ def main():
         args = parser.parse_args()
         
         seedfix(args.seed)
+        device = torch.device('cpu')
 
         if args.local_rank == 0:
             writer = SummaryWriter(args.snapshot_dir)
             print(args)
 
-        if not args.gpu == 'None':
-            os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-
         d, h, w = map(int, args.input_size.split(','))
         input_size = (d, h, w)
 
-        cudnn.benchmark = True
-        seed = args.random_seed
-        if engine.distributed:
-            seed = args.local_rank
-        torch.manual_seed(seed)
-
-        # Replace the device setup code with this:
-        if torch.backends.mps.is_available():
-            device = torch.device("mps")
-        else:
-            device = torch.device("cpu")
-        print(f"Using device: {device}")
-
-        # Create model
-        model = unet3D_with_feam3([1, 2, 2, 2, 2], num_classes=args.num_classes, weight_std=args.weight_std, use_cm = [True, True, True], deep_up=args.deep_up)
-        model.train()
+        # Create network
+        model = unet3D_with_feam3([1, 2, 2, 2, 2], num_classes=args.num_classes, weight_std=args.weight_std)
+        model = model.to(device)
         refiner = unet3D_g([1, 1, 1, 1, 1], num_classes=2, weight_std=args.weight_std, init_filter=24, in_channel=2) # light weight refiner
         refiner.train()
 
@@ -145,7 +129,10 @@ def main():
         d_style.to(device)
         refiner.to(device)
 
-        optimizer = torch.optim.Adam([{'params': model.parameters()}, {'params': refiner.parameters()}], lr = args.learning_rate, weight_decay = 0.00005)
+        optimizer = optim.SGD(model.parameters(),
+                          lr=args.learning_rate,
+                          momentum=args.momentum,
+                          weight_decay=args.weight_decay)
 
         if args.FP16:
             print("Note: Using FP16 during training************")
@@ -161,12 +148,12 @@ def main():
             print('loading from checkpoint: {}'.format(args.reload_path))
             if os.path.exists(args.reload_path):
                 if args.FP16:
-                    checkpoint = torch.load(args.reload_path, map_location=torch.device('cpu'))
+                    checkpoint = torch.load(args.reload_path, map_location=device)
                     model.load_state_dict(checkpoint['model'])
                     optimizer.load_state_dict(checkpoint['optimizer'])
                     amp.load_state_dict(checkpoint['amp'])
                 else:
-                    checkpoint = torch.load(args.reload_path, map_location=torch.device('cpu'))
+                    checkpoint = torch.load(args.reload_path, map_location=device)
                     model.load_state_dict(checkpoint['model'])
                     refiner.load_state_dict(checkpoint["refiner"])
                     optimizer.load_state_dict(checkpoint['optimizer'])
@@ -174,8 +161,8 @@ def main():
             else:
                 print('File not exists in the reload path: {}'.format(args.reload_path))
 
-        if not os.path.exists(args.snapshot_dir):
-            os.makedirs(args.snapshot_dir)
+        # At the start of training
+        os.makedirs(args.snapshot_dir, exist_ok=True)
 
         trainloader, train_sampler = engine.get_train_loader(
             AMOSDataSet_newatlas(args.data_dir, max_iters=args.itrs_each_epoch * args.batch_size, crop_size=input_size, scale=args.random_scale, mirror=args.random_mirror), 
